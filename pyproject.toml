@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smart-budget-meal-optimization"
+version = "1.0.0"
+description = "Smart Budget Meal Optimization Environment for OpenEnv Hackathon"
+authors = [
+    {name = "Ashwath1107"}
+]
+dependencies = [
+    "openenv-core",
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic",
+    "requests",
+    "openai",
+    "python-dotenv"
+]
+
+[project.scripts]
+# The openenv validator REQUIRES this to be named exactly 'server'
+server = "server.app:main"
+
+[tool.openenv]
+task_name = "smart-budget-meal-optimization"
+benchmark = "meal-optimization"
+env_class = "server.environment:HelpDeskEnvironment"

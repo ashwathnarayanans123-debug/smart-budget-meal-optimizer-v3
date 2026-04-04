@@ -1,0 +1,25 @@
+name: Smart Budget Meal Optimization Environment
+description: Balancing health, budget, and hunger in a real-world nutrition simulation.
+version: 1.0.0
+author: Ashwath1107
+api_version: "1.0"
+
+# Main entry point for the validator and server
+entry_point: server.app:app
+
+# 📊 Tasks with normalized success scoring (0.0-1.0)
+tasks:
+  easy:
+    objective: Minimize hunger (Initial: 10, Goal: 0)
+    grading: graders.py:grade_easy
+  medium:
+    objective: Manage hunger while maintaining health > 5
+    grading: graders.py:grade_medium
+  hard:
+    objective: Manage hunger on limited budget (Initial: 50) while staying healthy
+    grading: graders.py:grade_hard
+
+# 🧬 RL Interface Configuration
+observation_space: models.py:TicketObservation
+action_space: models.py:TicketAction
+reward_range: [-5.0, 18.0]
