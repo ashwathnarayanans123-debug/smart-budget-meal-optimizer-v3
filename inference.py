@@ -30,11 +30,15 @@ Budget: {obs['budget']}/100
 Choose one action: burger, salad, or rice.
 Return ONLY one word."""
 
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0
-    )
+    try:
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0
+        )
+    except Exception as e:
+        # 🔥 Catch the exact proxy error and print it on one line so the dashboard doesn't truncate it!
+        raise RuntimeError(f"🚨 LITELLM PROXY ERROR 🚨: {str(e)}")
 
     choice = response.choices[0].message.content.strip().lower()
 
