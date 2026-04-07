@@ -6,14 +6,17 @@ from typing import Dict, Any
 from openai import OpenAI
 
 # 🔑 Mandatory Hackathon Variables
-API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-3.5-turbo") # Or meta-llama/Llama-3.2-3B-Instruct
-HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("OPENAI_API_KEY")
+API_BASE_URL = os.getenv("API_BASE_URL")
+API_KEY = os.getenv("API_KEY", "sk-noop")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
+
+# 🔌 Environment Server URL (Local container)
+ENV_URL = "http://127.0.0.1:8000"
 
 # 🧬 Initialization of the mandatory OpenAI Client
 client = OpenAI(
-    api_key=HF_TOKEN or "sk-noop",
-    base_url=os.getenv("OPENAI_API_BASE", None) # Optional override
+    api_key=API_KEY,
+    base_url=API_BASE_URL
 )
 
 def choose_meal(obs: Dict[str, Any]) -> Dict[str, str]:
@@ -45,7 +48,7 @@ def run_episode(task_id: str = "medium"):
     print("[START]")
     
     # 🔌 Reset Environment
-    res = requests.post(f"{API_BASE_URL}/reset", json={"task_id": task_id})
+    res = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id})
     if res.status_code != 200:
         return 0
 
@@ -61,7 +64,7 @@ def run_episode(task_id: str = "medium"):
         
         # 🚀 Send Action to Environment
         payload = {"action": action_dict}
-        res = requests.post(f"{API_BASE_URL}/step", json=payload)
+        res = requests.post(f"{ENV_URL}/step", json=payload)
         
         if res.status_code != 200:
             break
