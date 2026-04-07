@@ -5,86 +5,68 @@ import time
 from typing import Dict, Any
 from openai import OpenAI
 
-# 🔑 Mandatory Hackathon Variables
+# 🔑 Mandatory Hackathon Variables (injected by grader)
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 API_KEY = os.getenv("API_KEY", "sk-noop")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
 
-# ✅ Use ENV provided by Antigravity
-ENV_URL = os.getenv("ENV_URL", "http://localhost:8000")
+# 🔌 Environment Server URL — MUST match Dockerfile port (7860)
+ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
 
-# 🧬 OpenAI Client
+# 🧬 OpenAI Client (points at the Hackathon's LiteLLM proxy)
 client = OpenAI(
     api_key=API_KEY,
     base_url=API_BASE_URL
 )
 
-# 🔥 SAFE DECISION FUNCTION (LLM + fallback)
 def choose_meal(obs: Dict[str, Any]) -> Dict[str, str]:
-    try:
-        prompt = f"""
-        You are an AI nutrition assistant.
-        Hunger: {obs['hunger']}/10
-        Health: {obs['health']}/10
-        Budget: {obs['budget']}/100
+    """Uses LLM proxy to decide on meal based on current state."""
+    prompt = f"""You are an AI nutrition assistant. Current state:
+Hunger: {obs['hunger']}/10
+Health: {obs['health']}/10
+Budget: {obs['budget']}/100
 
-        Choose one: burger, salad, rice.
-        Return ONLY one word.
-        """
+Choose one action: burger, salad, or rice.
+Return ONLY one word."""
 
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0
-        )
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0
+    )
 
-        choice = response.choices[0].message.content.strip().lower()
+    choice = response.choices[0].message.content.strip().lower()
 
-        if "burger" in choice:
-            return {"food": "burger"}
-        elif "salad" in choice:
-            return {"food": "salad"}
-        else:
-            return {"food": "rice"}
-
-    except Exception as e:
-        # 🔥 FATAL CRASH: We MUST see the exact reason the proxy rejected us on the dashboard! 
-        # Sending a fallback hides the error and makes the grader think you cheated.
-        raise RuntimeError(f"LITELLM_PROXY_REJECTED: {str(e)}")
+    if "burger" in choice:
+        return {"food": "burger"}
+    elif "salad" in choice:
+        return {"food": "salad"}
+    else:
+        return {"food": "rice"}
 
 
-# 🔥 SAFE RUN
 def run_episode(task_id: str = "medium"):
     print("[START]")
 
-    # ✅ RESET
-    try:
-        res = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id})
-        res.raise_for_status()
-    except Exception as e:
-        print("❌ Reset failed:", e)
-        return 0.0
+    # Reset Environment — NO try/except, let it crash loudly
+    res = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id})
+    res.raise_for_status()
 
     data = res.json()
     obs = data["observation"]
     done = data.get("done", False)
-
     step_num = 1
     total_reward = 0.0
 
     while not done:
-        try:
-            action_dict = choose_meal(obs)
+        # Agent decides via LLM — NO try/except, let it crash loudly
+        action_dict = choose_meal(obs)
 
-            res = requests.post(f"{ENV_URL}/step", json={"action": action_dict})
-            res.raise_for_status()
+        # Send action — NO try/except, let it crash loudly
+        res = requests.post(f"{ENV_URL}/step", json={"action": action_dict})
+        res.raise_for_status()
 
-            data = res.json()
-
-        except Exception as e:
-            print("❌ Step failed:", e)
-            break
-
+        data = res.json()
         obs = data["observation"]
         reward = data.get("reward", 0.0)
         done = data.get("done", False)
@@ -103,21 +85,12 @@ def run_episode(task_id: str = "medium"):
     return total_reward
 
 
-# 🔥 MAIN (MANDATORY OUTPUT)
 if __name__ == "__main__":
-    try:
-        tasks = ["easy", "medium", "hard"]
-        results = {}
+    tasks = ["easy", "medium", "hard"]
+    for task in tasks:
+        print(f"\nEvaluating Task: {task}")
+        total_rew = run_episode(task)
+        print(f"Total Reward: {round(total_rew, 2)}")
 
-        for task in tasks:
-            print(f"\nEvaluating Task: {task}")
-            total_rew = run_episode(task)
-            results[task] = total_rew
-            print(f"Total Reward: {round(total_rew, 2)}")
-
-        print("\n======== FINAL RESULT ========")
-        print(json.dumps(results))
-
-    except Exception as e:
-        print("❌ Fatal Error:", e)
-        print(json.dumps({"result": "fallback"}))
+    print("\n======== FINAL RESULT ========")
+    print("Baseline Inference Complete.")
