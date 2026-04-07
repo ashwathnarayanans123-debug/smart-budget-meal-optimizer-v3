@@ -26,4 +26,4 @@ server = "server.app:main"
 [tool.openenv]
 task_name = "smart-budget-meal-optimization"
 benchmark = "meal-optimization"
-env_class = "server.environment:HelpDeskEnvironment"
+env_class = "server.environment:MealEnv"

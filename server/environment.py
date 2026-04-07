@@ -1,8 +1,6 @@
-import random
-from typing import Optional, List, Dict
+from typing import Optional
 from openenv.core.env_server.interfaces import Environment
 from models import TicketAction, TicketObservation, TicketReward
-from tasks import TASKS
 
 class MealEnv(Environment):
     """
@@ -17,92 +15,108 @@ class MealEnv(Environment):
         "author": "Ashwath1107"
     }
 
-    # 🧬 Class-level state for stateful HTTP simulation
-    _hunger = 10
-    _budget = 100
-    _health = 10
-    _task_id = "medium"
-    _done = False
-    _rng = random.Random(42)
-
     def __init__(self):
         super().__init__()
+        # Instance-level state avoids cross-request/session interference.
+        self._hunger = 10
+        self._budget = 80
+        self._health = 8
+        self._task_id = "medium"
+        self._done = False
+        self._step_count = 0
+        self._max_steps = 12
 
     def _get_observation(self) -> TicketObservation:
         return TicketObservation(
-            hunger=MealEnv._hunger,
-            budget=MealEnv._budget,
-            health=MealEnv._health,
+            hunger=self._hunger,
+            budget=self._budget,
+            health=self._health,
         )
 
     def reset(self, task_id: Optional[str] = None):
         """Initializes a new scenario based on task constraint."""
-        MealEnv._task_id = task_id or "medium"
-        
+        self._task_id = task_id or "medium"
+        self._step_count = 0
+
         # 🎮 Scenario Initialization (Task-specific logic)
-        if task_id == "easy":
-            MealEnv._hunger = 10
-            MealEnv._budget = 100
-            MealEnv._health = 10
-        elif task_id == "hard":
-            MealEnv._hunger = 10
-            MealEnv._budget = 50 
-            MealEnv._health = 5 
+        if self._task_id == "easy":
+            self._hunger = 10
+            self._budget = 100
+            self._health = 10
+        elif self._task_id == "hard":
+            self._hunger = 10
+            self._budget = 50
+            self._health = 5
         else:
-            MealEnv._hunger = 10
-            MealEnv._budget = 80
-            MealEnv._health = 8
-            
-        MealEnv._done = False
+            self._hunger = 10
+            self._budget = 80
+            self._health = 8
+
+        self._done = False
         return self._get_observation()
     
     def step(self, action: TicketAction) -> TicketReward:
         food = action.food.lower()
-        
+        if self._done:
+            return TicketReward(
+                reward=0.0,
+                done=True,
+                observation=self._get_observation(),
+                info={"task": self._task_id, "reason": "episode_already_done"},
+            )
+
+        self._step_count += 1
+
         # 🧪 Food Effects (Real-World Logic as per spec)
         if food == "burger":
-            MealEnv._hunger -= 3
-            MealEnv._budget -= 30
-            MealEnv._health -= 1
+            self._hunger -= 3
+            self._budget -= 30
+            self._health -= 1
         elif food == "salad":
-            MealEnv._hunger -= 2
-            MealEnv._budget -= 20
-            MealEnv._health += 2
+            self._hunger -= 2
+            self._budget -= 20
+            self._health += 2
         elif food == "rice":
-            MealEnv._hunger -= 4
-            MealEnv._budget -= 15
-            MealEnv._health += 1
-        else: # ❌ Invalid action penalty
-            MealEnv._health -= 2
-        
+            self._hunger -= 4
+            self._budget -= 15
+            self._health += 1
+        else:  # ❌ Invalid action penalty
+            self._health -= 2
+
+        # Living pressure: each decision step has slight metabolic drag.
+        self._hunger += 1
+        self._health -= 1 if food == "burger" else 0
+
         # 📉 Clamp Values
-        MealEnv._hunger = max(0, min(10, MealEnv._hunger))
-        MealEnv._budget = max(0, min(100, MealEnv._budget))
-        MealEnv._health = max(0, min(10, MealEnv._health))
-        
+        self._hunger = max(0, min(10, self._hunger))
+        self._budget = max(0, min(100, self._budget))
+        self._health = max(0, min(10, self._health))
+
         # 🛑 Termination Logic
-        MealEnv._done = (
-            MealEnv._hunger == 0 or
-            MealEnv._budget <= 0 or
-            MealEnv._health <= 0
+        self._done = (
+            self._hunger == 0
+            or self._budget <= 0
+            or self._health <= 0
+            or self._step_count >= self._max_steps
         )
-        
+
         # 🎯 Reward Function (Meaningful Signal Trajectory)
         reward = (
-            (10 - MealEnv._hunger) * 0.5 +   # Hungrier = Bad
-            MealEnv._health * 0.3 +          # Healthier = Good
-            MealEnv._budget * 0.1            # Richer = Good
+            (10 - self._hunger) * 0.5
+            + self._health * 0.3
+            + self._budget * 0.1
         )
-        
-        if MealEnv._done:
-            # Penalty for failure states, or lower reward for premature finish
-            if MealEnv._hunger > 0: reward -= 5
-        
+
+        if self._budget == 0 or self._health == 0:
+            reward -= 8.0
+        if self._step_count >= self._max_steps and self._hunger > 0:
+            reward -= 4.0
+
         return TicketReward(
             reward=reward,
-            done=MealEnv._done,
+            done=self._done,
             observation=self._get_observation(),
-            info={"task": MealEnv._task_id}
+            info={"task": self._task_id, "step_count": self._step_count},
         )
     
     @property

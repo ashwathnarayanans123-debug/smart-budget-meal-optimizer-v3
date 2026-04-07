@@ -4,14 +4,17 @@ from fastapi.responses import FileResponse, JSONResponse
 from openenv.core.env_server.http_server import create_app
 from fastapi.middleware.cors import CORSMiddleware
 from server.environment import MealEnv
-from models import TicketAction, TicketObservation, TicketReward
+from models import TicketAction, TicketObservation
 from dotenv import load_dotenv
 
 # Load local .env
 load_dotenv()
 
+_ENV = MealEnv()
+
+
 def get_env():
-    return MealEnv()
+    return _ENV
 
 # Create the standard OpenEnv app
 app = create_app(
@@ -36,12 +39,6 @@ async def read_index():
     path = os.path.join(static_dir, "index.html")
     if os.path.exists(path): return FileResponse(path)
     return JSONResponse({"error": "UI index.html missing!"})
-
-@app.get("/state", include_in_schema=False)
-async def get_state():
-    # Retrieve current state from the environment
-    state = app.state.env.state
-    return JSONResponse({"observation": state.dict()})
 
 def main():
     uvicorn.run(app, host="0.0.0.0", port=8000)

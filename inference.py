@@ -19,6 +19,29 @@ client = OpenAI(
     base_url=API_BASE_URL
 )
 
+def extract_observation(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize reset/step responses across OpenEnv wrapper versions."""
+    obs = payload.get("observation", payload)
+    if isinstance(obs, dict) and "observation" in obs and "hunger" not in obs:
+        inner = obs.get("observation")
+        if isinstance(inner, dict):
+            obs = inner
+    return {
+        "hunger": int(obs.get("hunger", 10)),
+        "budget": int(obs.get("budget", 100)),
+        "health": int(obs.get("health", 10)),
+    }
+
+def fallback_policy(obs: Dict[str, Any]) -> Dict[str, str]:
+    """Deterministic backup policy used when LLM call fails."""
+    if obs["health"] <= 3:
+        return {"food": "salad"}
+    if obs["budget"] <= 20:
+        return {"food": "rice"}
+    if obs["hunger"] >= 8:
+        return {"food": "rice"}
+    return {"food": "salad"}
+
 
 def choose_meal(obs: Dict[str, Any]) -> Dict[str, str]:
     """Uses LLM proxy to decide on meal based on current state."""
@@ -37,8 +60,8 @@ Return ONLY one word."""
             temperature=0.0
         )
     except Exception as e:
-        # 🔥 Catch the exact proxy error and print it on one line so the dashboard doesn't truncate it!
-        raise RuntimeError(f"🚨 LITELLM PROXY ERROR 🚨: {str(e)}")
+        print(f"[WARN] LLM request failed, using fallback policy: {str(e)}")
+        return fallback_policy(obs)
 
     choice = response.choices[0].message.content.strip().lower()
 
@@ -57,7 +80,7 @@ def run_episode(task_id: str = "medium"):
     res.raise_for_status()
 
     data = res.json()
-    obs = data["observation"]
+    obs = extract_observation(data)
     done = data.get("done", False)
     step_num = 1
     total_reward = 0.0
@@ -71,7 +94,7 @@ def run_episode(task_id: str = "medium"):
         res.raise_for_status()
 
         data = res.json()
-        obs = data["observation"]
+        obs = extract_observation(data)
         reward = data.get("reward", 0.0)
         done = data.get("done", False)
 

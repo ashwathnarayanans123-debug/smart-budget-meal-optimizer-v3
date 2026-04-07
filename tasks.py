@@ -7,7 +7,7 @@ TASKS = {
     },
     "medium": {
         "id": "medium",
-        "name": "Hungural + Health Balance",
+        "name": "Hunger + Health Balance",
         "description": "Minimize hunger while maintaining or improving health score.",
         "difficulty": 0.5,
     },

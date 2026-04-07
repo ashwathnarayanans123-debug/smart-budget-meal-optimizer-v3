@@ -595,7 +595,7 @@
         }
 
         async function handleAction(food) {
-            const data = await api('step', { action: { food } });
+            const data = await api('/step', { action: { food } });
             updateUI(data);
             if (data.observation) addToLog(food, data.observation);
         }
@@ -603,7 +603,7 @@
         async function init() {
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('activity-log').innerHTML = '';
-            const data = await api('reset', { task_id: 'medium' });
+            const data = await api('/reset', { task_id: 'medium' });
             updateUI(data);
             document.getElementById('reward-info').innerText = "Simulation Started. Choose wisely!";
         }
