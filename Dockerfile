@@ -1,5 +1,5 @@
-# Use Python 3.11 Bullseye image
-FROM python:3.11-bullseye
+# Use full Python 3.11 image to bypass slim rate-limits
+FROM python:3.11
 
 # Set working directory
 WORKDIR /app
