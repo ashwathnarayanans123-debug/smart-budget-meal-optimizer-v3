@@ -10,8 +10,32 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 API_KEY = os.getenv("API_KEY", "sk-noop")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
 
-# 🔌 Environment Server URL
-ENV_URL = "http://127.0.0.1:8000"
+def find_env_url():
+    candidates = [
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:7860", 
+        "http://0.0.0.0:8000",
+        "http://0.0.0.0:7860",
+        "http://localhost:8000",
+        "http://localhost:7860",
+        "http://environment:8000",
+        "http://server:8000"
+    ]
+    if os.getenv("OPENENV_BASE_URL"):
+        candidates.insert(0, os.getenv("OPENENV_BASE_URL"))
+        
+    for url in candidates:
+        try:
+            # Send a fast HEAD request to check if port is open
+            requests.head(url, timeout=1)
+            print(f"✅ Found Environment server at: {url}")
+            return url
+        except requests.exceptions.ConnectionError:
+            continue
+    raise ConnectionError("Could not find Environment server on any candidate ports! Hackathon networking error.")
+
+# 🔌 Dynamically locate the Environment Server port
+ENV_URL = find_env_url()
 
 # 🧬 Initialization of the mandatory OpenAI Client
 client = OpenAI(
