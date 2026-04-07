@@ -10,8 +10,8 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 API_KEY = os.getenv("API_KEY", "sk-noop")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
 
-# 🔌 Environment Server URL (Use same Gateway as LLM Proxy!)
-ENV_URL = API_BASE_URL
+# 🔌 Environment Server URL
+ENV_URL = "http://127.0.0.1:8000"
 
 # 🧬 Initialization of the mandatory OpenAI Client
 client = OpenAI(
@@ -97,4 +97,4 @@ if __name__ == "__main__":
         print(f"Total Reward: {round(total_rew, 2)}")
     
     print("\n======== FINAL RESULT ========")
-    print("Baseline Inference Complete.")
+    print("Baseline Inference Complete.")   
