@@ -6,12 +6,12 @@ from typing import Dict, Any
 from openai import OpenAI
 
 # 🔑 Mandatory Hackathon Variables
-API_BASE_URL = os.getenv("API_BASE_URL")
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 API_KEY = os.getenv("API_KEY", "sk-noop")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
 
-# 🔌 Environment Server URL (Local container)
-ENV_URL = "http://127.0.0.1:8000"
+# 🔌 Environment Server URL (Use same Gateway as LLM Proxy!)
+ENV_URL = API_BASE_URL
 
 # 🧬 Initialization of the mandatory OpenAI Client
 client = OpenAI(
@@ -54,8 +54,7 @@ def run_episode(task_id: str = "medium"):
     
     # 🔌 Reset Environment
     res = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id})
-    if res.status_code != 200:
-        return 0
+    res.raise_for_status()
 
     data = res.json()
     obs = data["observation"]
@@ -70,9 +69,7 @@ def run_episode(task_id: str = "medium"):
         # 🚀 Send Action to Environment
         payload = {"action": action_dict}
         res = requests.post(f"{ENV_URL}/step", json=payload)
-        
-        if res.status_code != 200:
-            break
+        res.raise_for_status()
             
         data = res.json()
         obs = data["observation"]
