@@ -20,105 +20,37 @@ client = OpenAI(
 )
 
 
-def rule_based_fallback(obs: Dict[str, Any], task_id: str = "medium") -> Dict[str, str]:
-    """
-    Smart rule-based fallback when LLM is unavailable.
-    
-    Meal costs/effects (approximate):
-      burger : hunger -4, health -1, budget -30
-      salad  : hunger -2, health +2, budget -10
-      rice   : hunger -3, health  0, budget -20
-    """
-    hunger = obs.get("hunger", 10)
-    health = obs.get("health", 5)
-    budget = obs.get("budget", 50)
+def choose_meal(obs: Dict[str, Any]) -> Dict[str, str]:
+    """Uses LLM proxy to decide on meal based on current state."""
+    prompt = f"""You are an AI nutrition assistant. Current state:
+Hunger: {obs['hunger']}/10
+Health: {obs['health']}/10
+Budget: {obs['budget']}/100
 
-    if task_id == "easy":
-        # Just kill hunger as fast as possible
-        if hunger >= 4 and budget >= 30:
-            return {"food": "burger"}
-        elif hunger >= 3 and budget >= 20:
-            return {"food": "rice"}
-        else:
-            return {"food": "salad"}
+Choose one action: burger, salad, or rice.
+Return ONLY one word."""
 
-    elif task_id == "medium":
-        # Balance hunger reduction and health
-        if health <= 4:
-            return {"food": "salad"}          # restore health
-        if hunger >= 6 and budget >= 30:
-            return {"food": "burger"}
-        elif hunger >= 3:
-            return {"food": "rice"}
-        else:
-            return {"food": "salad"}
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0
+    )
 
-    else:  # hard — budget matters most
-        if budget < 20:
-            return {"food": "salad"}          # cheapest option
-        if health <= 3:
-            return {"food": "salad"}
-        if hunger >= 7 and budget >= 30 and health >= 5:
-            return {"food": "burger"}
-        elif hunger >= 3 and budget >= 20:
-            return {"food": "rice"}
-        else:
-            return {"food": "salad"}
+    choice = response.choices[0].message.content.strip().lower()
 
-
-def choose_meal(obs: Dict[str, Any], task_id: str = "medium") -> Dict[str, str]:
-    """Uses LLM proxy to decide on meal; falls back to rule-based on failure."""
-
-    prompt = f"""You are an AI nutrition assistant helping optimize meals.
-
-Current state:
-- Hunger: {obs['hunger']}/10  (lower is better)
-- Health: {obs['health']}/10  (higher is better)
-- Budget: {obs['budget']}/100 (higher is better)
-- Task: {task_id}
-
-Meal options:
-- burger: reduces hunger by ~4, costs ~30, slightly reduces health
-- salad:  reduces hunger by ~2, costs ~10, improves health by ~2
-- rice:   reduces hunger by ~3, costs ~20, neutral health
-
-Choose the BEST single meal for this state. Reply with ONLY one word: burger, salad, or rice."""
-
-    try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=10
-        )
-        choice = response.choices[0].message.content.strip().lower()
-
-        if "burger" in choice:
-            return {"food": "burger"}
-        elif "salad" in choice:
-            return {"food": "salad"}
-        elif "rice" in choice:
-            return {"food": "rice"}
-        else:
-            # LLM returned something unexpected — use fallback
-            print(f"[WARN] Unexpected LLM response '{choice}', using rule-based fallback.")
-            return rule_based_fallback(obs, task_id)
-
-    except Exception as e:
-        print(f"[WARN] LLM call failed: {e}. Using rule-based fallback.")
-        return rule_based_fallback(obs, task_id)
-
+    if "burger" in choice:
+        return {"food": "burger"}
+    elif "salad" in choice:
+        return {"food": "salad"}
+    else:
+        return {"food": "rice"}
 
 def run_episode(task_id: str = "medium"):
-    print(f"[START] Task: {task_id}")
+    print("[START]")
 
-    # Reset Environment
-    try:
-        res = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id}, timeout=30)
-        res.raise_for_status()
-    except Exception as e:
-        print(f"[ERROR] Failed to reset environment: {e}")
-        return 0.0
+    # Reset Environment — NO try/except, let it crash loudly
+    res = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id})
+    res.raise_for_status()
 
     data = res.json()
     obs = data["observation"]
@@ -127,16 +59,12 @@ def run_episode(task_id: str = "medium"):
     total_reward = 0.0
 
     while not done:
-        # Agent decides (LLM with rule-based fallback)
-        action_dict = choose_meal(obs, task_id)
+        # Agent decides via LLM — NO try/except, let it crash loudly
+        action_dict = choose_meal(obs)
 
-        # Send action to environment
-        try:
-            res = requests.post(f"{ENV_URL}/step", json={"action": action_dict}, timeout=30)
-            res.raise_for_status()
-        except Exception as e:
-            print(f"[ERROR] Step {step_num} failed: {e}")
-            break
+        # Send action — NO try/except, let it crash loudly
+        res = requests.post(f"{ENV_URL}/step", json={"action": action_dict})
+        res.raise_for_status()
 
         data = res.json()
         obs = data["observation"]
@@ -145,15 +73,7 @@ def run_episode(task_id: str = "medium"):
 
         total_reward += reward
 
-        print(
-            f"[STEP] {step_num}: {{"
-            f"'action': {action_dict['food']}, "
-            f"'hunger': {obs['hunger']}, "
-            f"'budget': {obs['budget']}, "
-            f"'health': {obs['health']}, "
-            f"'reward': {round(reward, 2)}, "
-            f"'done': {done}}}"
-        )
+        print(f"[STEP] {step_num}: {{'hunger': {obs['hunger']}, 'budget': {obs['budget']}, 'health': {obs['health']}, 'reward': {round(reward, 2)}, 'done': {done}}}")
         step_num += 1
 
         if step_num > 50:
@@ -164,19 +84,12 @@ def run_episode(task_id: str = "medium"):
     print(f"[END] Total Reward: {round(total_reward, 2)}")
     return total_reward
 
-
 if __name__ == "__main__":
     tasks = ["easy", "medium", "hard"]
-    results = {}
-
     for task in tasks:
-        print(f"\n{'='*40}")
-        print(f"Evaluating Task: {task}")
+        print(f"\nEvaluating Task: {task}")
         total_rew = run_episode(task)
-        results[task] = round(total_rew, 2)
-        print(f"Total Reward for '{task}': {results[task]}")
+        print(f"Total Reward: {round(total_rew, 2)}")
 
     print("\n======== FINAL RESULT ========")
-    for task, rew in results.items():
-        print(f"  {task}: {rew}")
-    print("Inference Complete.")
+    print("Baseline Inference Complete.")
