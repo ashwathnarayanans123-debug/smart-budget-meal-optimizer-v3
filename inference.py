@@ -29,18 +29,23 @@ def choose_meal(obs: Dict[str, Any]) -> Dict[str, str]:
 
     Available actions: burger, salad, rice.
     Choose the best meal choice to optimize long-term health and budget while reducing hunger.
-    Return ONLY JSON: {{"food": "burger" | "salad" | "rice"}}
+    Return only a single exact word from the actions: burger, salad, or rice. DO NOT return any other text.
     """
     
-    try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"}
-        )
-        return json.loads(response.choices[0].message.content)
-    except Exception as e:
-        # Heuristic fallback for non-LLM testing
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0
+    )
+    
+    choice = response.choices[0].message.content.strip().lower()
+    
+    # Simple keyword extraction in case it returns more than one word
+    if "burger" in choice:
+        return {"food": "burger"}
+    elif "salad" in choice:
+        return {"food": "salad"}
+    else:
         return {"food": "rice"}
 
 
